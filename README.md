@@ -14,4 +14,4 @@
 
 문서별 토픽 비중 분포를 연도별 비중으로 변환, 모델 시각화 등은
 https://www.machinelearningplus.com/nlp/topic-modeling-gensim-python/
-에서 많은 영감을 받았습니다. Many Thanks!
+에서 많은 도움과 영감을 받았습니다. Many Thanks!
