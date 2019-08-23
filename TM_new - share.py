@@ -51,51 +51,33 @@ logging.basicConfig(format = '%(asctime)s : %(levelname)s : %(message)s', level=
 from gensim import corpora
 from gensim.models import LdaModel
 
+# 여러 random_state 버전의 모델 만들기
+random_range = list(range(4,11))
+random_range = random_range[::-1]
+
 K = 25 # the optimized number of the topics: gay 25
-random_state = 1 # set random seed
-iterations = 1000 # 반복 
-fname="nor_lda_"+Theme+"K"+str(K)+"R"+str(random_state)+"I"+str(iterations)
+iterations = 1000 # 반복 횟수
 
-dictionary = corpora.Dictionary(words_list)
-# save dictionary
-dictionary.save('TM\\'+fname+'_dictionary.pkl')
-# load dictionary
-dictionary = corpora.Dictionary.load('TM\\'+fname+'_dictionary.pkl')
+while True:
+    if not random_range:
+        break
+    random_state = random_range.pop() # set random seed
+    fname="nor_lda_"+Theme+"K"+str(K)+"R"+str(random_state)+"I"+str(iterations)
 
-corpus = [dictionary.doc2bow(text) for text in words_list]
-# save corpus
-corpora.MmCorpus.serialize('TM\\'+fname+'_corpus.mm', corpus)
-# load corpus
-corpus = corpora.MmCorpus('TM\\'+fname+'_corpus.mm')
+    # build 토픽 모델
+    dictionary = corpora.Dictionary(words_list)
+    dictionary.save('TM\\'+fname+'_dictionary.pkl')
 
-# build 토픽 모델
-lda = LdaModel(corpus, 
+    corpus = [dictionary.doc2bow(text) for text in words_list]
+    corpora.MmCorpus.serialize('TM\\'+fname+'_corpus.mm', corpus)
+
+    lda = LdaModel(corpus, 
                num_topics=K, 
                id2word=dictionary,
                random_state=random_state, 
                iterations=iterations)
-# 저장
-lda.save('Models\\'+fname)
-# 다시 로드
-lda = LdaModel.load('Models\\'+fname)
+    lda.save('Models\\'+fname)
 
-### * Topic Trend *
-# * 연도별로 어떤 토픽이 어떤 비중을 차지하는가 *
-
-# split corpus for each year
-words_year = defaultdict(list)
-for k, v in zip(year_list, words_list):
-    words_year[k].append(v)
-
-# bow of each year
-corpus_year = defaultdict(list)
-for k, texts in words_year.items():
-    corpus_year[k] = [dictionary.doc2bow(text) for text in texts]
-
-# LDA vector of each year
-lda_year = defaultdict(list)
-for k, bows in corpus_year.items():
-    lda_year[k] = [lda[bow] for bow in bows]
 
 # 문서별 토픽의 비중을 토픽 당 비중으로 전환하는 함수
 # convert document-weight to topic-weight
@@ -106,15 +88,81 @@ def convert_d2t(documents_topics):
             topic_weight[topic[0]] += topic[1] / len(documents_topics) #normalize
     return topic_weight
 
-# 연도를 key, 연도별 토픽 비중을 value로 하는 딕트로 변환
-keylist = list(lda_year.keys())
-keylist.sort()
+# split corpus for each year
+words_year = defaultdict(list)
+for k, v in zip(year_list, words_list):
+    words_year[k].append(v)    
+    
+## 여러 모델 결과 저장
+random_range = list(range(4,11))
+while True:
+    if not random_range:
+        break
+    random_state = random_range.pop() # set random seed
+    fname="nor_lda_"+Theme+"K"+str(K)+"R"+str(random_state)+"I"+str(iterations)
 
-topic_year = defaultdict(dict)
-for key in keylist:
-    topic_year[key]=convert_d2t(lda_year[key])
- 
-# 파일로 저장
-TopicMatrixFilename="TopicTrend\\"+fname+"TM.csv"
-pd.DataFrame.from_dict(topic_year).to_csv(TopicMatrixFilename, index=False)
-# end of Topic Trend test //
+    dictionary = corpora.Dictionary.load('TM\\'+fname+'_dictionary.pkl')
+    corpus = corpora.MmCorpus('TM\\'+fname+'_corpus.mm')
+    lda = LdaModel.load('Models\\'+fname)
+    topics = lda.print_topics(-1,20)
+
+    # 토픽별 단어 저장
+    feat_fname = 'TopicTrend\\'+fname+'_feats.txt'
+    with open(feat_fname, 'w') as text_file:
+        for topic_num, features in topics:
+            text_file.write("Topic={0} \n {1} \n".format(topic_num, features))
+    
+    ### * Topic Trend *
+    # * 연도별로 어떤 토픽이 어떤 비중을 차지하는가 *
+    # bow of each year
+    corpus_year = defaultdict(list)
+    for k, texts in words_year.items():
+        corpus_year[k] = [dictionary.doc2bow(text) for text in texts]
+    
+    # LDA vector of each year
+    lda_year = defaultdict(list)
+    for k, bows in corpus_year.items():
+        lda_year[k] = [lda[bow] for bow in bows]
+
+    # 연도를 key, 연도별 토픽 비중을 value로 하는 딕트로 변환
+    keylist = list(lda_year.keys())
+    keylist.sort()
+    
+    topic_year = defaultdict(dict)
+    for key in keylist:
+        topic_year[key]=convert_d2t(lda_year[key])
+     
+    # 파일로 저장
+    TopicMatrixFilename="TopicTrend\\"+fname+"TM.csv"
+    pd.DataFrame.from_dict(topic_year).to_csv(TopicMatrixFilename, index=False)
+    # end of Topic Trend test //
+
+## * visualization *
+# !!주의!!
+# pyLDAvis 패키지는 현재(19-08-19) python3.4 아래에서 돌아감 (p)
+import pyLDAvis.gensim
+import os
+from gensim import corpora
+from gensim.models import LdaModel
+
+Path=u'C:\\Users\\hannews\\Documents\\2019 신년기획 소수자 텍스트마이닝'
+os.chdir(Path)
+
+Theme = 'gay'
+K = 25 # the optimized number of the topics: gay 25
+iterations = 1000 # 반복 횟수
+random_range = list(range(4,11))
+
+while True:
+    if not random_range:
+        break
+    random_state = random_range.pop() # set random seed
+    fname="nor_lda_"+Theme+"K"+str(K)+"R"+str(random_state)+"I"+str(iterations)
+
+    dictionary = corpora.Dictionary.load('TM\\'+fname+'_dictionary.pkl')
+    corpus = corpora.MmCorpus('TM\\'+fname+'_corpus.mm')
+    lda = LdaModel.load('Models\\'+fname)
+    prepared_data = pyLDAvis.gensim.prepare(lda, corpus, dictionary, sort_topics=False)
+    # save as html file
+    vname="LdaVis\\"+fname+".html" #sort_topics is False
+    pyLDAvis.save_html(prepared_data, vname)
